@@ -1,0 +1,85 @@
+---
+title: "Course Project"
+author: "Daniel Traverso"
+date: "6/14/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading the Data
+
+Download pml-testing.csv and pml-training.csv into your current working directory
+
+```{r load}
+trainingData <- read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!",""), header=TRUE)
+testingData <- read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!",""), header=TRUE)
+```
+
+##Clean the Data
+
+Remove columns with all NA's
+```{r NAs}
+trainingData <- trainingData[, colSums(is.na(trainingData)) == 0]
+testingData <- testingData[, colSums(is.na(testingData)) == 0]
+```
+
+We remove near-zero variance predictors from the dataset
+
+```{r clean}
+library(caret)
+badvar <- nearZeroVar(trainingData, saveMetrics=TRUE)
+train <- trainingData[,badvar$nzv==FALSE]
+test <- testingData[,badvar$nzv==FALSE]
+```
+
+Remove the row numbers, names of participants, and time stamps(first seven columns)
+
+```{r clean2}
+train <- train[-c(1:7)]
+test <- test[-c(1:7)]
+```
+
+##Data Partition
+
+In order to get out-of-sample error we'll split the training set 70/30
+
+```{r partition}
+set.seed(4321) 
+inTrain <- createDataPartition(train$classe, p = 0.7, list = FALSE)
+train1 <- train[inTrain, ]
+train2 <- train[-inTrain, ]
+```
+
+##Build the Model
+
+Next we build a decision tree on the training data using the caret package
+
+```{r train}
+control <- trainControl(method = "cv", number = 5)
+model <- train(classe ~ ., data = train1, method = "rpart", trControl = control)
+print(model, digits = 4)
+```
+
+Next we'll predict on the validation set
+
+``` {r validate}
+pred <- predict(model, train2)
+(confMatrix <- confusionMatrix(train2$classe, pred))
+```
+
+``` {r accuracy}
+(accuracy <- confMatrix$overall[1])
+```
+
+The accuracy rate is 0.4879, so the out-of-sample error is 0.5121.
+
+##Test Set Predictions
+
+Now we'll predict on the final holdout set
+
+``` {r test}
+(predict(model, test))
+```
